@@ -1,0 +1,102 @@
+# Change Logs - Earthnet Atmosphere Model
+
+## Version 1
+
+Initial version of assimilating microwave sounders and geostationary imagers to predict temperature and specific humidity. 
+- Based on the paper https://arxiv.org/abs/2407.11696
+- Temperature and specific humidity taken from the Microwave Integrated Retrieval System (MIRS)
+- Signal largely from the Advanced Technology Microwave Retrieval System (ATMS)
+- Number of input satellite/sensors = 4 GEO + 3 LEO
+- Output is the resolution of ATMS
+
+### Variables
+- `qv` = Specific humidity (37 levels)
+- `temp` = Temperature (37 levels)
+- `atms_brightness_temperature` = Synthetic microwave radiances (22 channels)
+
+### Coordinates
+- `lat`: Latitude, 0.16 degrees
+- `lon`: Longitude, 0.16 degrees
+- `time`: Forecast times hourly, starting at t=0
+- `level`: Atmospheric pressure from 1000 to 1 hpa
+- `atms_channel`: Channels corresponding to spectral wavelengths from ATMS
+
+
+### Location
+AWS S3 - `s3://zeusai-data/prod/earthnet/v1/forecast/{year}/{month}/{day}/earthnet.v1.forecast.6h.{year}{month}{day}{hour}00.zarr`
+
+### Format
+```
+<xarray.Dataset> Size: 3GB
+Dimensions:                      (level: 37, atms_channel: 22, lat: 1125,
+                                  time: 7, lon: 2249)
+Coordinates:
+  * level                        (level) int64 296B 1000 975 950 925 ... 5 3 2 1
+  * atms_channel                 (atms_channel) int64 176B 0 1 2 3 ... 19 20 21
+  * lat                          (lat) float64 9kB -90.08 -89.92 ... 89.6 89.76
+  * lon                          (lon) float64 18kB -180.0 -179.8 ... 179.7
+  * time                         (time) datetime64[ns] 56B 2025-07-13T16:00:0...
+Data variables:
+    atms_brightness_temperature  (atms_channel, time, lat, lon) float16 779MB dask.array<chunksize=(3, 2, 282, 563), meta=np.ndarray>
+    qv                           (level, time, lat, lon) float16 1GB dask.array<chunksize=(5, 2, 282, 563), meta=np.ndarray>
+    temp                         (level, time, lat, lon) float16 1GB dask.array<chunksize=(5, 2, 282, 563), meta=np.ndarray>
+```
+
+## Version 2.0
+
+This version is an overhaul to the model that enables a larger range of input and outputs of the model.
+
+### Key updates
+- Datasets are expanded with the added capability of weather stations, radiosondes, and topographical information.  
+- Microwave sounder data is expanded to the AMSU-A sensor on 5 more satellites. 
+- An initial effort to support winds was added, including from ERA5 (13 levels) and radiosondes (2 levels). 
+- The underlying data projection was upgraded to HealPix too ensure each modeled pixel is of near equal size. Data is reprojected to the latitude-longitude grid for dissemenation, and resulted in a slightly lower spatial resolution of 0.23.
+- Multi-resolution data capability to better handle cross sensor differences in spatial/temporal resolution.
+- In all, this model ingests 17 modalities with resolutions varying by a factor of 2.
+
+### Variables
+- `qv` = Specific humidity (37 levels, pressure_37)
+- `temp` = Temperature (37 levels, pressure_37)
+
+### Coordinates
+- `lat`: Latitude, 0.23 degrees
+- `lon`: Longitude, 0.23 degrees
+- `time`: Forecast times hourly, starting at t=0
+- `pressure_37`: 37 levels of atmospheric pressure from 1 to 1000 hpa
+- `pressure_13`: 13 levels of atmospheric pressure from 50 to 100 hpa
+- `pressure_2`: 2 levels of atmospheric pressure from 1000 to 1 hpa
+- `atms_channel`: Channels corresponding to spectral wavelengths from the Advanced Technology Microwave Sounder (ATMS)
+
+### Location
+AWS S3 - `s3://zeusai-data/prod/earthnet/v2/forecast/{year}/{month}/{day}/earthnet.v2.forecast.6h.{year}{month}{day}{hour}00.zarr`
+
+### Format
+```
+<xarray.Dataset> Size: 4GB
+Dimensions:      (lat: 782, lead_time: 7, lon: 1565, pressure_13: 13,
+                  pressure_37: 37, pressure_2: 2, time: 1)
+Coordinates:
+  * lat          (lat) float64 6kB -89.88 -89.65 -89.42 ... 89.42 89.65 89.88
+  * lead_time    (lead_time) timedelta64[ns] 56B 00:00:00 01:00:00 ... 06:00:00
+  * lon          (lon) float64 13kB -179.9 -179.7 -179.4 ... 179.4 179.7 179.9
+  * pressure_13  (pressure_13) int64 104B 50 100 150 200 ... 700 850 925 1000
+  * pressure_37  (pressure_37) int64 296B 1 2 3 5 7 10 ... 900 925 950 975 1000
+  * pressure_2   (pressure_2) int64 16B 300 500
+  * time         (time) datetime64[ns] 8B 2025-07-13T16:00:00
+Data variables:
+    qv           (time, pressure_37, lat, lon, lead_time) float32 1GB dask.array<chunksize=(1, 10, 500, 500, 7), meta=np.ndarray>
+    u_1          (time, pressure_13, lat, lon, lead_time) float32 445MB dask.array<chunksize=(1, 13, 500, 500, 7), meta=np.ndarray>
+    u_2          (time, pressure_2, lat, lon, lead_time) float32 69MB dask.array<chunksize=(1, 2, 500, 500, 7), meta=np.ndarray>
+    temp         (time, pressure_37, lat, lon, lead_time) float32 1GB dask.array<chunksize=(1, 10, 500, 500, 7), meta=np.ndarray>
+    v_2          (time, pressure_2, lat, lon, lead_time) float32 69MB dask.array<chunksize=(1, 2, 500, 500, 7), meta=np.ndarray>
+    v_1          (time, pressure_13, lat, lon, lead_time) float32 445MB dask.array<chunksize=(1, 13, 500, 500, 7), meta=np.ndarray>
+    w_1          (time, pressure_13, lat, lon, lead_time) float32 445MB dask.array<chunksize=(1, 13, 500, 500, 7), meta=np.ndarray>
+```
+
+### Dependencies
+- `pandas >= 2.3.1` (we found earlier versions are not reading times)
+- `zarr >= 3.0` (preferred, migration to zarr v3 upcoming)
+
+## What's next? 
+- In version 2.1 we are aiming to expand the vertical resolution of radiosonde inputs and incorporate surface level ocean winds from the ASCAT sensor. 
+- More work will be done on handling multiresolution data more effectively. 
